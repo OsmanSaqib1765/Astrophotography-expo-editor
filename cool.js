@@ -2,26 +2,23 @@ const canvas = document.getElementById("canvas");
 const gl = canvas.getContext("webgl");
 if (!gl) alert("WebGL not supported");
 
+const fileInput = document.getElementById("fileInput");
 const focal = document.getElementById("focal");
 const aperture = document.getElementById("aperture");
 const iso = document.getElementById("iso");
 const exposure = document.getElementById("exposure");
-const imageSelect = document.getElementById("imageSelect");
 
-const decodedImages = {}; // Store TIFF images
+let imageData = null; // stores loaded TIFF RGBA
 
 // Vertex shader
 const vertexSrc = `
 attribute vec2 a_position;
 attribute vec2 a_texcoord;
 varying vec2 v_texcoord;
-void main() {
-  gl_Position = vec4(a_position,0,1);
-  v_texcoord = a_texcoord;
-}
+void main(){ gl_Position = vec4(a_position,0,1); v_texcoord = a_texcoord; }
 `;
 
-// Fragment shader (exposure + tone mapping + gamma)
+// Fragment shader
 const fragmentSrc = `
 precision mediump float;
 uniform sampler2D u_image;
@@ -30,10 +27,10 @@ uniform float u_aperture;
 uniform float u_iso;
 uniform float u_exposure;
 varying vec2 v_texcoord;
-void main() {
-  vec4 color = texture2D(u_image, v_texcoord);
-  float factor = (u_aperture*u_aperture)/(u_focal*u_focal) * u_exposure * (u_iso/100.0);
-  float brightness = factor / 0.02;
+void main(){
+  vec4 color = texture2D(u_image,v_texcoord);
+  float factor = (u_aperture*u_aperture)/(u_focal*u_focal)*u_exposure*(u_iso/100.0);
+  float brightness = factor/0.02;
   for(int i=0;i<3;i++){
     color[i] = pow((color[i]*brightness)/(1.0 + color[i]*brightness), 1.0/2.2);
   }
@@ -41,49 +38,43 @@ void main() {
 }
 `;
 
-// Compile shader
-function createShader(gl, type, src) {
+// Compile & program
+function createShader(gl, type, src){
   const s = gl.createShader(type);
   gl.shaderSource(s, src);
   gl.compileShader(s);
-  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) 
-      console.log(gl.getShaderInfoLog(s));
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))
+    console.log(gl.getShaderInfoLog(s));
   return s;
 }
-
-// Create program
-function createProgram(gl, v, f) {
+function createProgram(gl,v,f){
   const p = gl.createProgram();
   gl.attachShader(p,v);
   gl.attachShader(p,f);
   gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS))
-      console.log(gl.getProgramInfoLog(p));
+    console.log(gl.getProgramInfoLog(p));
   return p;
 }
 
 const vShader = createShader(gl, gl.VERTEX_SHADER, vertexSrc);
 const fShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSrc);
-const program = createProgram(gl, vShader, fShader);
+const program = createProgram(gl,vShader,fShader);
 gl.useProgram(program);
 
 // Full-screen quad
-const posLoc = gl.getAttribLocation(program, "a_position");
-const texLoc = gl.getAttribLocation(program, "a_texcoord");
+const posLoc = gl.getAttribLocation(program,"a_position");
+const texLoc = gl.getAttribLocation(program,"a_texcoord");
 const buffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-  -1,-1, 0,0,
-   1,-1, 1,0,
-  -1, 1, 0,1,
-  -1, 1, 0,1,
-   1,-1, 1,0,
-   1, 1, 1,1
+  -1,-1, 0,0, 1,-1, 1,0, -1,1,0,1,
+  -1,1,0,1, 1,-1,1,0, 1,1,1,1
 ]), gl.STATIC_DRAW);
 gl.enableVertexAttribArray(posLoc);
-gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 16, 0);
+gl.vertexAttribPointer(posLoc,2,gl.FLOAT,false,16,0);
 gl.enableVertexAttribArray(texLoc);
-gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 16, 8);
+gl.vertexAttribPointer(texLoc,2,gl.FLOAT,false,16,8);
 
 // Uniforms
 const u_image = gl.getUniformLocation(program,"u_image");
@@ -94,38 +85,20 @@ const u_exposure = gl.getUniformLocation(program,"u_exposure");
 
 // Texture
 const texture = gl.createTexture();
-gl.bindTexture(gl.TEXTURE_2D, texture);
+gl.bindTexture(gl.TEXTURE_2D,texture);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-// Load TIFF
-function loadTIFF(name){
-  return fetch(name).then(r => r.arrayBuffer()).then(buf => {
-    const ifds = UTIF.decode(buf);
-    UTIF.decodeImage(buf, ifds[0]);
-    const rgba = UTIF.toRGBA8(ifds[0]); // 8-bit RGBA
-    decodedImages[name] = { width: ifds[0].width, height: ifds[0].height, data: rgba };
-    if(name === imageSelect.value) drawImage();
-  });
-}
-
-// Preload all images
-["images/IC_1396_AstroBackyardyy.tiff",
- "images/ANDROMEDAYY.tiff",
- "images/PLEIADES_STACKEDYY.tiff",
- "images/ORION_STACKEDYY.tiff"].forEach(loadTIFF);
-
-// Draw image on GPU
-function drawImage(){
-  const img = decodedImages[imageSelect.value];
-  if(!img) return;
-  canvas.width = img.width;
-  canvas.height = img.height;
+// Draw function
+function draw(){
+  if(!imageData) return;
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
   gl.viewport(0,0,canvas.width,canvas.height);
 
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,img.width,img.height,0,gl.RGBA,gl.UNSIGNED_BYTE,img.data);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,imageData.width,imageData.height,0,gl.RGBA,gl.UNSIGNED_BYTE,imageData.data);
 
   gl.uniform1f(u_focal, parseFloat(focal.value));
   gl.uniform1f(u_aperture, parseFloat(aperture.value));
@@ -133,8 +106,23 @@ function drawImage(){
   gl.uniform1f(u_exposure, parseFloat(exposure.value));
   gl.uniform1i(u_image,0);
 
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.drawArrays(gl.TRIANGLES,0,6);
 }
 
-// Input listeners
-[focal, aperture, iso, exposure, imageSelect].forEach(el => el.addEventListener("input", drawImage));
+// Handle file input
+fileInput.addEventListener("change", e=>{
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = function(){
+    const buf = reader.result;
+    const ifds = UTIF.decode(buf);
+    UTIF.decodeImage(buf, ifds[0]);
+    const rgba = UTIF.toRGBA8(ifds[0]);
+    imageData = { width: ifds[0].width, height: ifds[0].height, data: rgba };
+    draw();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Update on input changes
+[focal, aperture, iso, exposure].forEach(el=>el.addEventListener("input", draw));
