@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TIFF Astro Exposure Simulator (GPU)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>TIFF Astro Exposure Simulator 🌌</h1>
+
+<select id="imageSelect">
+  <option value="IC_1396_AstroBackyardyy.tiff">Elephant's Trunk Nebula</option>
+  <option value="ANDROMEDAYY.tiff">Andromeda Galaxy</option>
+  <option value="PLEIADES_STACKEDYY.tiff">Pleiades</option>
+  <option value="ORION_STACKEDYY.tiff">Orion Nebula</option>
+</select>
+
+<canvas id="canvas"></canvas>
+
+<div class="controls">
+  <label>Focal length (mm):
+    <input id="focal" type="number" step="0.01" value="420">
+  </label>
+  <label>Aperture (mm):
+    <input id="aperture" type="number" step="0.01" value="72">
+  </label>
+  <label>ISO:
+    <input id="iso" type="number" step="0.01" value="600">
+  </label>
+  <label>Exposure (s):
+    <input id="exposure" type="number" step="0.01" value="47">
+  </label>
+</div>
+
+<script src="utif.js"></script>
+<script src="webgl_script.js"></script>
+
+</body>
+</html>

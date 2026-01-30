@@ -1,0 +1,30 @@
+body {
+  background: #0a0a0a;
+  color: #eee;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+#canvas {
+  border: 1px solid #444;
+  margin-top: 20px;
+}
+
+.controls {
+  margin: 15px auto;
+  width: 90%;
+  max-width: 400px;
+  text-align: left;
+}
+
+.controls label {
+  display: block;
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.controls input {
+  width: 100%;
+  padding: 4px;
+  font-size: 14px;
+}
