@@ -7,10 +7,11 @@ const focal = document.getElementById("focal");
 const aperture = document.getElementById("aperture");
 const iso = document.getElementById("iso");
 const exposure = document.getElementById("exposure");
+const downloadBtn = document.getElementById("downloadTiff");
 
-let imageData = null; // stores loaded TIFF RGBA
+let imageData = null;
 
-// Vertex shader
+// Vertex Shader
 const vertexSrc = `
 attribute vec2 a_position;
 attribute vec2 a_texcoord;
@@ -18,7 +19,7 @@ varying vec2 v_texcoord;
 void main(){ gl_Position = vec4(a_position,0,1); v_texcoord = a_texcoord; }
 `;
 
-// Fragment shader
+// Fragment Shader
 const fragmentSrc = `
 precision mediump float;
 uniform sampler2D u_image;
@@ -38,13 +39,13 @@ void main(){
 }
 `;
 
-// Compile & program
-function createShader(gl, type, src){
+// Compile shaders
+function createShader(gl,type,src){
   const s = gl.createShader(type);
-  gl.shaderSource(s, src);
+  gl.shaderSource(s,src);
   gl.compileShader(s);
-  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))
-    console.log(gl.getShaderInfoLog(s));
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS))
+      console.log(gl.getShaderInfoLog(s));
   return s;
 }
 function createProgram(gl,v,f){
@@ -53,7 +54,7 @@ function createProgram(gl,v,f){
   gl.attachShader(p,f);
   gl.linkProgram(p);
   if(!gl.getProgramParameter(p, gl.LINK_STATUS))
-    console.log(gl.getProgramInfoLog(p));
+      console.log(gl.getProgramInfoLog(p));
   return p;
 }
 
@@ -62,13 +63,13 @@ const fShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSrc);
 const program = createProgram(gl,vShader,fShader);
 gl.useProgram(program);
 
-// Full-screen quad
+// Fullscreen quad
 const posLoc = gl.getAttribLocation(program,"a_position");
 const texLoc = gl.getAttribLocation(program,"a_texcoord");
 const buffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-  -1,-1, 0,0, 1,-1, 1,0, -1,1,0,1,
+  -1,-1, 0,0, 1,-1,1,0, -1,1,0,1,
   -1,1,0,1, 1,-1,1,0, 1,1,1,1
 ]), gl.STATIC_DRAW);
 gl.enableVertexAttribArray(posLoc);
@@ -90,7 +91,6 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-// Draw function
 function draw(){
   if(!imageData) return;
   canvas.width = imageData.width;
@@ -109,13 +109,13 @@ function draw(){
   gl.drawArrays(gl.TRIANGLES,0,6);
 }
 
-// Handle file input
+// Load TIFF from file input
 fileInput.addEventListener("change", e=>{
   const file = e.target.files[0];
   const reader = new FileReader();
   reader.onload = function(){
     const buf = reader.result;
-    const ifds = UTIF.decode(buf);
+    const ifds = UTIF.decode(buf);         // LZW decompression happens here
     UTIF.decodeImage(buf, ifds[0]);
     const rgba = UTIF.toRGBA8(ifds[0]);
     imageData = { width: ifds[0].width, height: ifds[0].height, data: rgba };
@@ -124,5 +124,26 @@ fileInput.addEventListener("change", e=>{
   reader.readAsArrayBuffer(file);
 });
 
-// Update on input changes
+// Update on float input change
 [focal, aperture, iso, exposure].forEach(el=>el.addEventListener("input", draw));
+
+// Download processed TIFF
+downloadBtn.addEventListener("click", ()=>{
+  if(!imageData) return;
+  const ifd = {
+    width: imageData.width,
+    height: imageData.height,
+    data: imageData.data,
+    bitsPerSample: [8,8,8,8],
+    samplesPerPixel: 4,
+    compression: 1,
+    photometricInterpretation: 2,
+    planarConfiguration: 1
+  };
+  const tiffArray = UTIF.encodeImage(ifd.data, ifd.width, ifd.height, ifd);
+  const blob = new Blob([tiffArray], {type:"image/tiff"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "astro_processed.tiff";
+  a.click();
+});
