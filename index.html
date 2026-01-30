@@ -2,20 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TIFF Astro Exposure Simulator 🌌</title>
+<title>TIFF Astro GPU</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <h1>TIFF Astro Exposure Simulator 🌌</h1>
 
-<select id="imageSelect">
-  <option value="images/IC_1396_AstroBackyardyy.tiff">Elephant's Trunk Nebula</option>
-  <option value="images/ANDROMEDAYY.tiff">Andromeda Galaxy</option>
-  <option value="images/PLEIADES_STACKEDYY.tiff">Pleiades</option>
-  <option value="images/ORION_STACKEDYY.tiff">Orion Nebula</option>
-</select>
-
+<input type="file" id="fileInput" accept=".tiff,.tif">
 <canvas id="canvas"></canvas>
 
 <div class="controls">
